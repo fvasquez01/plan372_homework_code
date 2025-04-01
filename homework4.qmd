@@ -123,11 +123,7 @@ model <- lm(total_passengers ~ origin_pop + dest_pop + distance, data = cbsa_to_
 summary(model)
 ```
 
-x1 \<- airport_with_census %\>%
 
-filter(origin %in% c("PDX", "ELP", "TLH", "SMF")) %\>%
-
-unique(origin_pop)
 
 ```{r}
 #| echo: false
