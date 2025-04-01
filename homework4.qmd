@@ -23,7 +23,7 @@ airport_data <- read.csv("airport_pairs.csv")
 
 ```
 
-You can add options to executable code like this
+Question 1
 
 ```{r}
 #| echo: false
@@ -39,7 +39,7 @@ print(rdu_routes)
 
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Question 2
 
 ```{R}
 #| echo: false
@@ -113,6 +113,7 @@ ggplot(cbsa_to_cbsa, aes(x = distance, y = total_passengers)) +
 ```
 
 \
+Question 3
 
 ```{r}
 #| echo: false
@@ -123,7 +124,7 @@ model <- lm(total_passengers ~ origin_pop + dest_pop + distance, data = cbsa_to_
 summary(model)
 ```
 
-
+Question 4
 
 ```{r}
 #| echo: false
