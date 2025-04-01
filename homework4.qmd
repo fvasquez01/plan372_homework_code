@@ -1,0 +1,185 @@
+---
+title: "Homework 4 Plan372"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+Load Libraries
+
+```{r}
+#| include: false
+library(tidycensus)
+library(tidyverse)
+library(ggplot2)
+census_api_key("1ee3985232a918f159ce84e690d2886ecfd36b7f", install = TRUE, overwrite = TRUE)
+
+airport_data <- read.csv("airport_pairs.csv")
+
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+
+# Filter for flights to or from RDU 
+rdu_routes <- airport_data %>%
+  filter((origin == "RDU" | dest == "RDU") & passengers > 10000) %>%
+  arrange(desc(passengers))
+
+
+print("RDU Routes with more than 10,000 passengers:")
+print(rdu_routes)
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{R}
+#| echo: false
+
+
+# Get total population for all CBSAs
+cbsa_pop <- get_decennial(geography = "cbsa", variables = "P1_001N", year = 2020)
+
+
+
+# Clean and format the population data
+cbsa_pop_clean <- cbsa_pop %>%
+  select(GEOID, NAME, value) %>%
+  rename(cbsa = GEOID, cbsa_name = NAME, population = value)
+
+# Convert airport data cbsa columns to character
+airport_data <- airport_data %>%
+  mutate(origin_cbsa = as.character(origin_cbsa),
+         dest_cbsa = as.character(dest_cbsa))
+
+# Create copies of the Census data with renamed variables for origin and destination
+origin_census <- cbsa_pop_clean %>%
+  rename(origin_cbsa = cbsa, 
+         origin_cbsa_name_census = cbsa_name,
+         origin_pop = population)
+
+dest_census <- cbsa_pop_clean %>%
+  rename(dest_cbsa = cbsa,
+         dest_cbsa_name_census = cbsa_name,
+         dest_pop = population)
+
+# Join Census data to airport data
+airport_with_census <- airport_data %>%
+  left_join(origin_census, by = "origin_cbsa") %>%
+  left_join(dest_census, by = "dest_cbsa") %>%
+  filter(!is.na(origin_cbsa) & !is.na(dest_cbsa))
+
+cbsa_to_cbsa_summary <- airport_with_census %>%
+  group_by(origin_cbsa_name, dest_cbsa_name) %>%
+  summarise(total_passengers = sum(passengers),
+            distance = mean(distancemiles))
+
+cbsa_to_cbsa <- cbsa_to_cbsa_summary %>%
+  left_join(
+    airport_with_census %>% 
+      select(origin_cbsa_name, dest_cbsa_name, origin_pop, dest_pop) %>%
+      distinct(),
+    by = c("origin_cbsa_name", "dest_cbsa_name")
+  )
+
+# Origin population vs. total passengers
+ggplot(cbsa_to_cbsa, aes(x = origin_pop, y = total_passengers)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Origin Population", y = "Total Passengers",
+       title = "Total Passengers vs. Origin CBSA Population")
+
+# Destination population vs. total passengers
+ggplot(cbsa_to_cbsa, aes(x = dest_pop, y = total_passengers)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Destination Population", y = "Total Passengers",
+       title = "Total Passengers vs. Destination CBSA Population")
+
+# Distance vs. total passengers
+ggplot(cbsa_to_cbsa, aes(x = distance, y = total_passengers)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Average Distance (miles)", y = "Total Passengers",
+       title = "Total Passengers vs. Flight Distance")
+```
+
+\
+
+```{r}
+#| echo: false
+# Run the regression model
+model <- lm(total_passengers ~ origin_pop + dest_pop + distance, data = cbsa_to_cbsa)
+
+# View the summary of the model
+summary(model)
+```
+
+x1 \<- airport_with_census %\>%
+
+filter(origin %in% c("PDX", "ELP", "TLH", "SMF")) %\>%
+
+unique(origin_pop)
+
+```{r}
+#| echo: false
+
+
+library(tidyverse)
+
+# route info 
+new_routes <- tibble(
+  origin = "RDU",
+  dest = c("PDX", "ELP", "TLH", "SMF"),
+  distance = c(2363, 1606, 496, 2345)
+)
+
+new_routes_reverse <- tibble(
+  origin = c("PDX", "ELP", "TLH", "SMF"),
+  dest = "RDU",
+  distance = c(2363, 1606, 496, 2345)
+)
+
+
+# RDU pop
+rdu_pop <- airport_with_census %>%
+  filter(origin == "RDU") %>%
+  distinct(origin, origin_pop)
+
+# Destination pops 
+other_pops <- airport_with_census %>%
+  filter(origin %in% c("PDX", "ELP", "TLH", "SMF")) %>%
+  distinct(origin, origin_pop)
+
+# Join pops for RDU to Destination
+routes_forward <- new_routes %>%
+  left_join(rdu_pop, by = "origin") %>%         
+  left_join(other_pops, by = c("dest" = "origin")) %>%  
+  rename(origin_pop = origin_pop.x, dest_pop = origin_pop.y)
+
+# Join pops for Destination to RDU
+routes_reverse <- new_routes_reverse %>%
+  left_join(other_pops, by = "origin") %>%      
+  left_join(rdu_pop, by = c("dest" = "origin")) %>%  
+  rename(origin_pop = origin_pop.x, dest_pop = origin_pop.y)
+
+# Combine both sets of routes
+all_routes <- bind_rows(routes_forward, routes_reverse)
+
+# Predict using model
+all_routes$predicted_passengers <- predict(model, newdata = all_routes)
+
+
+# predictions
+all_routes %>%
+  select(origin_pop, dest_pop, distance, predicted_passengers)
+
+```
